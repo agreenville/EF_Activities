@@ -52,6 +52,133 @@ Normally JAGS doesn't let functions be on the left-hand side of an <- but the _l
 2.	Plot the model credible interval and predictive interval.  Be sure to include the scatterplot of the observed data.
 3.	How well does the Poisson model match the data?  Does 95% of the data fall within the 95% PI?
 
+#### Task 1.1:
+```{r}
+
+library(rjags)
+library(coda)
+
+univariate_regression <- "
+model{
+
+  beta ~ dmnorm(b0,Vb)  	## multivariate Normal prior on vector of regression params
+ 
+  for(i in 1:n){
+	  
+	  log(mu[i]) <- beta[1]+beta[2]*TDR[i]     ## process model
+	  y[i]  ~ dpois(mu[i])		        ## data model
+  }
+}
+"
+```
+
+
+```{r}
+## specify priors
+
+# set up data list
+data <- list(TDR = TDR, y=y, n=n)
+
+data$b0 <- as.vector(c(0,0))      ## regression beta means
+data$Vb <- solve(diag(10000,2))   ## regression beta precisions
+
+```
+
+```{r}
+## initial conditions
+nchain = 3
+
+```
+
+```{r}
+j.model   <- jags.model(file = textConnection(univariate_regression),
+                             data = data,
+                             #inits = inits,
+                             n.chains = nchain)
+```
+
+
+```{r}
+var.out   <- coda.samples(model = j.model,
+                            variable.names = c("beta"),
+                                n.iter = 2000)
+```
+
+```{r}
+## remember to assess convergence and remove burn-in before doing other diagnostics
+GBR <- gelman.plot(var.out)
+
+## convert to matrix
+var.mat      <- as.matrix(var.out)
+
+## Pairwise scatter plots & correlation
+pairs(var.mat)	## pairs plot to evaluate parameter correlation
+cor(var.mat)    ## correlation matrix among model parameters
+```
+
+```{r}
+burnin <- 1500
+var.burn <- window(var.out,start=burnin)
+
+
+GBR.burn <- gelman.plot(var.burn)
+
+## convert to matrix
+var.mat.burn      <- as.matrix(var.burn)
+
+## Pairwise scatter plots & correlation
+pairs(var.mat.burn)	## pairs plot to evaluate parameter correlation
+cor(var.mat.burn)    ## correlation matrix among model parameters
+
+```
+
+
+
+### Task 1.2:
+```{r}
+xpred <- seq(min(TDR), by=0.1) #sort(TDR)
+plot(TDR,y)
+# use exp for log link to tranform back to response scale
+for(i in 1:10){
+  lines(xpred, exp(var.mat[i,"beta[1]"] + var.mat[i,"beta[2]"]*xpred))
+}
+
+```
+
+```{r}
+## credible and prediction intervals
+nsamp <- 5000
+samp <- sample.int(nrow(var.mat),nsamp)
+xpred <- seq(min(TDR), by=0.1) #sort(TDR)  					## sequence of x values we're going to
+npred <- length(xpred)				##      make predictions for
+ypred <- matrix(0.0,nrow=nsamp,ncol=npred)	## storage for predictive interval
+ycred <- matrix(0.0,nrow=nsamp,ncol=npred)	## storage for credible interval
+```
+
+```{r}
+for(g in seq_len(nsamp)){
+  theta = var.mat[samp[g],]
+  #note exp to backtransform to response scale
+  ycred[g,] <- exp(theta["beta[1]"] + theta["beta[2]"]*xpred)
+  ypred[g,] <- rpois(npred,ycred[g,])
+}
+```
+
+```{r}
+ci <- apply(ycred,2,quantile,c(0.025,0.5,0.975))  ## credible interval and median
+pi <- apply(ypred,2,quantile,c(0.025,0.975))		## prediction interval
+
+plot((TDR),y,cex=0.5,xlim=c(min(TDR),max(TDR)),ylim=c(0,35))
+lines(xpred,ci[1,],col=3,lty=2)	## lower CI
+lines(xpred,ci[2,],col=3,lwd=3)	## median
+lines(xpred,ci[3,],col="green",lty=2)	## upper CI
+lines(xpred,pi[1,],col="blue",lty=2)	## lower PI
+lines(xpred,pi[2,],col="blue",lty=2)	## upper PI
+
+```
+
+
+
 ## Missing Data
 
 It is not uncommon in the real world for a small percentage of data to be missing due to any of a multitude of real-world mistakes. In many cases it is simple enough to 'drop' these data, as is the norm in classical analyses. However there are cases where this is undesirable, such as when one has a large number of covariates and you are only missing one and don't want to drop the whole row, or when individual measurements are very expensive in time or money or are otherwise irreplaceable.  From the Bayesian perspective it is possible to formally accommodate missing data by [numerically] integrating over all possible states the data can take on.  This technique is sometime referred to as imputing the missing data, or more specifically as multiple imputation because we are proposing many values the data could have been.  Doing this (not surprisingly) requires that we specify a prior distribution on the missing data itself.  However, the inference will draw on the likelihood, the other covariates, and the response data in order to formally generate the posterior distribution of the missing data. Therefore, it is the posterior that we actually using 'fill in' the missing data, not the prior.  Finally, it bears mentioning that addressing missing data requires that we meet one very important assumtion – that the data is missing at random.  If the process that caused the data to be missing is systematic or in any way related to the process we're trying to understand then we cannot impute the missing data.
@@ -60,7 +187,20 @@ To show how this works:
 
 * Make a copy of your full 'data' list and then randomly change one of the TDR values to NA to make it 'missing'. Make sure to record the value before removing it.
 
+
+```{r}
+data.2 <- data
+data.2$TDR[9] <- NA
+```
+
+
 * Make a copy of your JAGS script and add a prior on the missing value. For example, if you removed the 12th TDR measurement you could put a prior on TDR[12] (e.g. a uniform over the range of valid data).
+
+```{r}
+
+```
+
+
 
 * Re-run the model using this data, but this time add the TDR value you removed to the variables that you track (e.g. TDR[12]) so that we can view the posterior distribution.
 
