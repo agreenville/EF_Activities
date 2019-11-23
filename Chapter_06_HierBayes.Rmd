@@ -13,6 +13,20 @@ For this activity we will look at data on mosquito abundance.  The data file “
 
 1.  Plot mosquito abundance as a function of time in a way that distinguishes the replicates and connects them through time (e.g. with lines, colors, or symbols)
 
+```{r}
+library(ggplot2)
+mossie <- read.csv("data/Mosquito.csv", header = TRUE)
+
+```
+
+
+```{r}
+
+ggplot(mossie, aes(time, density, colour=factor(replicate)))+geom_line()
+
+```
+
+
 2.	Write and run a JAGS model to fit the overall mean and standard deviation, reporting summary statistics for both. You can use the JAGS code you developed from activity 5 for this.
 
 3.	Add posterior CI and PI to the plot.

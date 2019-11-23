@@ -124,7 +124,7 @@ for(s in 1:NS){
 
 ```{r, echo=FALSE}
 ### settings
-s <- 6             ## Focal site for forward simulation
+s <- 6             ## Focal site 6 for forward simulation
 Nmc = 1000         ## set number of Monte Carlo draws
 ylim = c(100,700)  ## set Y range on plot
 N.cols <- c("black","red","green","blue","orange") ## set colors
@@ -180,20 +180,20 @@ To make a deterministic prediction, we'd then want to calculate the means of all
 
 ```{r}
 ## calculate mean of all inputs
-ppt.mean <- matrix(apply(ppt_ensemble,2,mean),1,NT) ## driver
+ppt.mean <- matrix(apply(ppt_ensemble,2,mean),1,NT) ## driver i.e. rain/precpitation
 ## parameters
 params <- as.matrix(out$params)
 param.mean <- apply(params,2,mean)
 ## initial conditions
 IC <- as.matrix(out$predict)
 
-N.det <- forecastN(IC=mean(IC[,"N[6,30]"]),
+N.det <- forecastN(IC=mean(IC[,"N[6,30]"]), #IC for site 6
                    r=param.mean["r_global"],
                    Kg=param.mean["K_global"],
-                   alpha=param.mean["alpha_site[6]"],
+                   alpha=param.mean["alpha_site[6]"], # site 6 mean
                    beta=param.mean["beta"],
                    ppt=ppt.mean,
-                   Q=0,  ## process error off
+                   Q= 0,  ## process error off
                    n=1)
 
 ## Plot run
@@ -210,6 +210,7 @@ For each source of uncertainty we'll be exploring the Monte Carlo approach to er
 ## sample parameter rows from previous analysis
 prow = sample.int(nrow(params),Nmc,replace=TRUE)
 
+# removed the mean
 N.I <- forecastN(IC=IC[prow,"N[6,30]"],  ## sample IC
                    r=param.mean["r_global"],
                    Kg=param.mean["K_global"],
@@ -235,6 +236,7 @@ Next, let's add parameter uncertainty to our forecast. To do this we'll want to 
 One important thing that is important to note about the parameter uncertainty propagation is that it relies on having meaningful estimates of parameter uncertainty. That's not to say that forecasts can't be done with priors (e.g. through literature synthesis or expert elicitation), but forecasting what you expect to happen in a real system is definitely different than slapping an arbitrary uniform prior on default parameters (e.g. +/- 20%).
 
 ```{r}
+# actual parameter conditions rather than taking the mean of the parameters
 N.IP <- forecastN(IC=IC[prow,"N[6,30]"],  ## sample IC
                    r=params[prow,"r_global"],  ## sample parameters
                    Kg=params[prow,"K_global"],
@@ -261,6 +263,8 @@ B) Using the existing model and Monte Carlo approach, describe how you might par
 Within our forecast precipitation is the primary extrinsic driver, and thus to make a forecast of our population we need to be able to make a forecast of this driver as well. Here we're going to rely on a `NE` member ensemble of precipitation forecasts, and as you can see the uncertainty in this forecasts grows with time.
 
 ```{r,echo=FALSE}
+# Forecast of rain over time (30 time steps)
+
 plot(time2,ppt_ensemble[1,],type='n',ylim=range(ppt_ensemble),xlab="time",ylab="precipitation (mm)")
 for(i in 1:NE){
   lines(time2,ppt_ensemble[i,],lwd=0.5,col="grey")
@@ -280,7 +284,7 @@ N.IPD <- forecastN(IC=IC[prow,"N[6,30]"],  ## sample IC
                    Kg=params[prow,"K_global"],
                    alpha=params[prow,"alpha_site[6]"],
                    beta=params[prow,"beta"],
-                   ppt=ppt_ensemble[drow,],   ## Sample drivers
+                   ppt=ppt_ensemble[drow,],   ## Sample drivers. Drawing
                    Q=0,
                    n=Nmc)
 
@@ -292,6 +296,10 @@ ecoforecastR::ciEnvelope(time2,N.IP.ci[1,],N.IP.ci[3,],col=col.alpha(N.cols[2],t
 ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
 lines(time2,N.I.ci[2,],lwd=0.5)
 ```
+black CI - Initial condition uncertainty (only small from 30-35)
+Red = parameter uncertainty
+Green = rainfall uncertainty progagation
+
 
 **Question 3:** As before, describe the pattern of how driver uncertainty contributes to the forecast and compare that to our first principles expectations.
 
@@ -309,7 +317,7 @@ N.IPDE <- forecastN(IC=IC[prow,"N[6,30]"],  ## sample IC
                    alpha=params[prow,"alpha_site[6]"],
                    beta=params[prow,"beta"],
                    ppt=ppt_ensemble[drow,],   ## Sample drivers
-                   Q=Qmc,
+                   Q=Qmc, # adding process uncertainty
                    n=Nmc)
 
 ## Plot run
@@ -322,7 +330,16 @@ ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],tra
 lines(time2,N.I.ci[2,],lwd=0.5)
 ```
 
+black CI - Initial condition uncertainty (only small from 30-35)
+Red = parameter uncertainty
+Green = rainfall uncertainty progagation
+blue = process uncertainty
+
 **Question 4:** Why might the relative contribution of the process error decline with time? Does this match expectations?
+
+
+
+
 
 ### Random Effect uncertainty
 
@@ -352,6 +369,13 @@ ecoforecastR::ciEnvelope(time2,N.IP.ci[1,],N.IP.ci[3,],col=col.alpha(N.cols[2],t
 ecoforecastR::ciEnvelope(time2,N.I.ci[1,],N.I.ci[3,],col=col.alpha(N.cols[1],trans))
 lines(time2,N.I.ci[2,],lwd=0.5)
 ```
+
+black CI - Initial condition uncertainty (only small from 30-35)
+Red = parameter uncertainty
+Green = rainfall uncertainty progagation
+blue = process uncertainty
+orange = Random effect uncertainty. see difference b/w sites from top fig (yellow site)
+
 
 **Question 5:** The last step added random effects, but this uncertainty could be further partitioned into two parts: the ecological site-to-site variability in the population processes, and the parameter uncertainty about the site-to-site variance. To partition these out repeat this analysis setting `tau.mc` to its posterior mean. How does this change your results? How much of the random effect uncertainty is due to ecological variability versus uncertainty about `tau.mc`?
 
